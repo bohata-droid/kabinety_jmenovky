@@ -1,1 +1,116 @@
+<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cedulky kabinetů – generátor DOCX</title><style>
+:root{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#172033;background:#f4f6fa}*{box-sizing:border-box}body{margin:0}header{background:#17223a;color:white;padding:24px max(24px,calc((100% - 1200px)/2))}header h1{margin:0;font-size:28px}header p{color:#cbd5e1;margin:8px 0 0}.wrap{max-width:1200px;margin:24px auto;padding:0 20px}.toolbar,.settings{display:flex;align-items:center;flex-wrap:wrap;gap:12px;background:white;border:1px solid #dce2eb;border-radius:12px;padding:16px;margin-bottom:16px}button,.upload{background:#223c83;color:#fff;border:0;border-radius:8px;padding:11px 16px;font-size:14px;font-weight:650;cursor:pointer}button:hover,.upload:hover{filter:brightness(1.13)}button.secondary{background:#eef2f8;color:#21365d}button:disabled{opacity:.5}input[type=file]{display:none}.muted{font-size:13px;color:#52617b}.stat{font-size:14px;font-weight:600;margin-left:auto}.settings label{font-size:14px;display:flex;align-items:center;gap:8px}.settings input{max-width:75px;padding:7px;border:1px solid #c7cfdb;border-radius:6px}.settings select{padding:7px;border:1px solid #c7cfdb;border-radius:6px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:18px}.entry{background:#fff;border:1px solid #dce2eb;border-radius:11px;padding:12px;min-width:0}.sign{aspect-ratio:1;background:var(--bg);color:var(--fg);padding:0;display:flex;flex-direction:column;overflow:hidden;outline:1px dotted #777;outline-offset:-1px}.sign.shadowed{ text-shadow:1px 1px 0 #000; } .sign .hd{margin:23px 0 0 20px}.sign .num{margin-left:20px}.sign .hd{font-family:Georgia,serif;font-weight:900;font-size:clamp(20px,2vw,31px);line-height:1.15}.sign .num{font-family:system-ui,sans-serif;font-size:clamp(21px,2.1vw,32px);font-weight:650;line-height:1.28}.sign .names{padding-left:4.35%;padding-right:4.35%;display:flex;flex:1;flex-direction:column;justify-content:center;gap:var(--gap);text-align:center;min-height:0}.sign .name{font-family:Georgia,serif;font-weight:900;font-size:var(--fs);line-height:1.12;white-space:nowrap}.edit{display:grid;gap:7px;margin-top:12px}.edit-top{display:flex;gap:8px}.edit input,.edit textarea{width:100%;min-width:0;padding:8px;border:1px solid #cbd3df;border-radius:6px;font:14px system-ui}.edit textarea{height:110px;resize:vertical;line-height:1.45}.edit label{font-size:12px;color:#52617b}.note{background:#fff9e9;border:1px solid #f1dfb7;border-radius:9px;padding:12px 15px;margin-bottom:16px;color:#745018;font-size:14px}.empty{padding:60px;text-align:center;color:#52617b}footer{padding:30px 0;color:#52617b;font-size:13px}#status{font-size:13px;color:#37517d}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}@media(max-width:650px){header{padding:20px}.stat{margin:0}.sign .hd{font-size:30px}.sign .num{font-size:31px}}
+</style></head><body><header><h1>Cedulky kabinetů</h1><p>Z přehledu učitelů vytvoříte tiskové cedulky 13,8 × 13,8 cm ve Wordu. Vše se zpracovává pouze v tomto prohlížeči.</p></header><main class="wrap"><section class="toolbar"><label for="file" class="upload">Nahrát seznam TXT / CSV</label><input id="file" type="file" accept=".txt,.csv,text/plain,text/csv"><button id="download" disabled>Stáhnout Word (.docx)</button><button id="saveProject" class="secondary" disabled>Uložit rozpracované (.json)</button><label for="projectFile" class="upload secondary" style="background:#eef2f8;color:#21365d">Otevřít rozpracované (.json)</label><input id="projectFile" type="file" accept=".json,application/json"><span id="status" role="status"></span><span class="stat" id="stats"></span></section><section class="settings"><label>Šířka a výška cedulky <input id="side" type="number" step="0.1" min="5" max="14" value="13.8"> cm</label><label>Mezera <input id="gutter" type="number" step="0.1" min="0" max="1.5" value="0.6"> cm</label><label>Text na růžových cedulkách (4. patro) <select id="pinkStyle"><option value="black">Černý</option><option value="white-shadow">Bílý – stínování Wordu</option></select></label><span class="muted">Učitelé jsou vždy řazeni podle příjmení. Každá cedulka má tenké tečkované ohraničení.</span></section><div class="note">Barvy podle první číslice: <strong>0</strong> bílá · <strong>1</strong> modrá · <strong>2</strong> fialová · <strong>3</strong> oranžová · <strong>4</strong> růžová · <strong>5</strong> červená. Názvy místností a jména lze upravit přímo u jednotlivých cedulek. Rozpracovanou práci lze uložit do JSON a později znovu otevřít. Při volbě bílého stínovaného písma se do Wordu uloží běžná vlastnost písma „Stín“; text zůstává editovatelný. Tituly za jménem se automaticky oddělují čárkou.</div><section id="cards" class="grid"></section><footer>Formát: A4 na šířku · dvě cedulky na stránku · DOCX (veškerý text zůstává editovatelný) · původní fonty: Playfair Display ExtraBold a Alexandria SemiBold (při tisku je vhodné mít je nainstalované).</footer></main><script>
+'use strict';
+const floors={0:['FFFFFF','171717'],1:['223C83','FFFFFF'],2:['322D5A','FFFFFF'],3:['FF500A','FFFFFF'],4:['F59B9B','191919'],5:['B90738','FFFFFF']};
+let rooms=[];
+const $=x=>document.getElementById(x);
+function parse(text){const m=new Map();let bad=0;for(const raw of text.replace(/^\uFEFF/,'').split(/\r?\n/)){if(!raw.trim())continue;let a=raw.split('\t');if(a.length<5){a=raw.split(';');}if(a.length<5){bad++;continue;}let [given,surname,pre,post,room]=a.map(s=>s.trim());room=room.replace(/^\uFEFF/,'').trim();if(!/^\d{3}$/.test(room)){bad++;continue;}let name=[pre,given,surname].filter(Boolean).join(' ').replace(/\s+/g,' ');if(post)name+=', '+post.replace(/^,\s*/,'');if(!m.has(room))m.set(room,{number:room,title:'Kabinet',people:[]});m.get(room).people.push({name,surname});}rooms=[...m.values()].sort((a,b)=>a.number.localeCompare(b.number,'cs'));sortPeople();render();$('status').textContent=bad?`${bad} řádků přeskočeno.`:'';}
+function sortPeople(){rooms.forEach(r=>r.people.sort((a,b)=>a.surname.localeCompare(b.surname,'cs',{sensitivity:'base'})));}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// Width is measured at the selected size. Do not shrink other teachers just
+// because one colleague has a long name. 0.6 cm is reserved at each side.
+const ctx=document.createElement('canvas').getContext('2d');
+function widthLimitedSize(name,side){
+  const usablePx=(side-1.2)*96/2.54;
+  for(let pt=26;pt>=8;pt-=0.5){
+    ctx.font=`900 ${pt*96/72}px "Playfair Display ExtraBold", Georgia, serif`;
+    // A modest allowance for differences between browser and Word rendering.
+    if(ctx.measureText(name).width*1.12<=usablePx)return pt;
+  }
+  return 8;
+}
+function nameLayout(r,side){
+  const n=r.people.length;
+  const available=Math.max(0,cm(side)-420-850-850-80);
+  const safety=2*cm(0.8);
+  const space=Math.max(1,available-safety);
+  let sizes=r.people.map(p=>widthLimitedSize(p.name,side));
+  const heights=()=>sizes.map(pt=>Math.round(pt*1.08*20));
+  let lineHeights=heights(),total=lineHeights.reduce((a,b)=>a+b,0);
+  // Reduce heights only if even zero interline spacing cannot fit.
+  while(total>space && sizes.some(x=>x>8)){
+    const ratio=space/total;
+    sizes=sizes.map(pt=>Math.max(8,Math.round(Math.min(pt-0.5,pt*ratio)*2)/2));
+    lineHeights=heights();total=lineHeights.reduce((a,b)=>a+b,0);
+  }
+  const preferredGap=n>=8?75:n>=6?110:n>=4?150:n>=2?215:0;
+  const leftover=Math.max(0,space-total);
+  const gap=n>1?Math.min(preferredGap,Math.floor(leftover/(n-1))):0;
+  const used=total+Math.max(0,n-1)*gap;
+  const topGap=Math.max(0,Math.floor((available-used)/2));
+  return {sizes,lineHeights,gap,topGap};
+}
 
+function render(){const out=$('cards');out.innerHTML='';$('download').disabled=!rooms.length;$('saveProject').disabled=!rooms.length;
+if(!rooms.length){out.innerHTML='<div class="empty">Zatím nejsou načtené žádné údaje. Nahrajte seznam učitelů ve formátu TXT nebo CSV.</div>';}
+rooms.forEach((r,i)=>{let colors=floorColors(r.number),typ=nameLayout(r,Number($('side').value)||13.8);let el=document.createElement('article');el.className='entry';el.innerHTML=`<div class="sign ${r.number[0]==='4' && $('pinkStyle').value==='white-shadow'?'shadowed':''}" style="--bg:#${colors[0]};--fg:#${colors[1]};--fs:${26*.72}px;--gap:${typ.gap*.6/20}px"><div class="hd">${esc(r.title)}</div><div class="num">${esc(r.number)}</div><div class="names">${r.people.map(p=>`<div class="name" style="font-size:${typ.sizes[r.people.indexOf(p)]*.72}px">${esc(p.name)}</div>`).join('')}</div></div><div class="edit"><div class="edit-top"><div style="flex:1"><label>Název místnosti</label><input class="roomTitle" value="${esc(r.title)}"></div><div style="width:78px"><label>Číslo</label><input class="roomNo" value="${esc(r.number)}" maxlength="3"></div></div><label>Jména (každý řádek = jedna osoba)</label><textarea class="people">${esc(r.people.map(p=>p.name).join('\n'))}</textarea></div>`;out.appendChild(el);el.querySelector('.roomTitle').addEventListener('input',e=>{r.title=e.target.value;el.querySelector('.hd').textContent=r.title});el.querySelector('.roomNo').addEventListener('change',e=>{if(!/^\d{3}$/.test(e.target.value)){e.target.value=r.number;alert('Číslo musí mít tři číslice.');return;}r.number=e.target.value;render();});el.querySelector('.people').addEventListener('input',e=>{const old=new Map(r.people.map(p=>[p.name,p.surname]));r.people=e.target.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).map(name=>({name,surname:old.get(name)||name.split(',')[0].trim().split(/\s+/).at(-1)}));let d=nameLayout(r,Number($('side').value)||13.8),sign=el.querySelector('.sign');sign.style.setProperty('--fs',26*.72+'px');sign.style.setProperty('--gap',d.gap*.6/20+'px');el.querySelector('.names').innerHTML=r.people.map(p=>`<div class="name" style="font-size:${typ.sizes[r.people.indexOf(p)]*.72}px">${esc(p.name)}</div>`).join('')});el.querySelector('.people').addEventListener('change',()=>{sortPeople();render()});});$('stats').textContent=`${rooms.length} kabinetů · ${rooms.reduce((a,r)=>a+r.people.length,0)} učitelů · ${Math.ceil(rooms.length/2)} stran`;}
+function saveAs(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);}
+$('saveProject').addEventListener('click',()=>{
+  if(!rooms.length)return;
+  const project={type:'cedulky-kabinetu',version:1,savedAt:new Date().toISOString(),settings:{side:Number($('side').value),gutter:Number($('gutter').value),pinkStyle:$('pinkStyle').value},rooms:rooms.map(r=>({number:r.number,title:r.title,people:r.people.map(p=>({name:p.name,surname:p.surname}))}))};
+  saveAs(new Blob([JSON.stringify(project,null,2)],{type:'application/json;charset=utf-8'}),'Cedulky_kabinetu_rozpracovane.json');
+  $('status').textContent='Rozpracovaná verze byla uložena.';
+});
+$('projectFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const project=JSON.parse(await f.text());
+    if(project.type!=='cedulky-kabinetu'||project.version!==1||!Array.isArray(project.rooms))throw new Error('Soubor nemá podporovaný formát rozpracovaných cedulek.');
+    const parsed=project.rooms.map(r=>{
+      if(typeof r.number!=='string'||!/^\d{3}$/.test(r.number)||typeof r.title!=='string'||!Array.isArray(r.people))throw new Error('Soubor obsahuje neplatné údaje kabinetu.');
+      return {number:r.number,title:r.title,people:r.people.map(p=>{if(typeof p.name!=='string'||typeof p.surname!=='string')throw new Error('Soubor obsahuje neplatné jméno.');return {name:p.name,surname:p.surname};})};
+    });
+    if(project.settings){const o=project.settings;if(typeof o.side==='number'&&o.side>=5&&o.side<=14)$('side').value=o.side;if(typeof o.gutter==='number'&&o.gutter>=0&&o.gutter<=1.5)$('gutter').value=o.gutter;if(['black','white-shadow'].includes(o.pinkStyle))$('pinkStyle').value=o.pinkStyle;}
+    rooms=parsed;sortPeople();rooms.sort((a,b)=>a.number.localeCompare(b.number,'cs'));render();
+    $('status').textContent='Rozpracovaná verze byla načtena.';
+  }catch(err){alert('Nepodařilo se načíst rozpracovaný soubor: '+err.message);}finally{e.target.value='';}
+});
+$('pinkStyle').addEventListener('change',render);
+$('side').addEventListener('change',render);
+$('file').addEventListener('change',async e=>{let f=e.target.files[0];if(!f)return;parse(await f.text());e.target.value='';});
+const cm=n=>Math.round(n*1440/2.54),hex=x=>x;function xml(s){return esc(s).replace(/&#39;/g,'&apos;');}
+const floorColors=number=>{let c=[...(floors[number[0]]||floors[0])];if(number[0]==='4'&&$('pinkStyle').value==='white-shadow')c[1]='FFFFFF';return c;};
+// Classic Word font effect: Home → Font → Shadow (w:shadow).
+// The effect has its own Word-defined offset rather than a configurable distance.
+// Unlike drawings it preserves editable text and the original paragraph layout.
+const run=(s,font,size,color,bold=true,shadow=false)=>`<w:r><w:rPr><w:rFonts w:ascii="${xml(font)}" w:hAnsi="${xml(font)}" w:cs="${xml(font)}"/><w:b w:val="${bold?1:0}"/><w:sz w:val="${Math.round(size*2)}"/><w:color w:val="${color}"/>${shadow?'<w:shadow w:val="1"/>':''}</w:rPr><w:t xml:space="preserve">${xml(s)}</w:t></w:r>`;
+function para(s,font,size,color,align='center',before=0,after=0,opts={}){
+ const line=opts.line||240;
+ const content=!s?'':run(align==='center'?s.replace(/ /g,'\u00a0').replace(/[–—]/g,m=>'\u2060'+m+'\u2060'):s,font,size,color,true,!!opts.shadow);
+ return `<w:p><w:pPr><w:jc w:val="${align}"/>${opts.header?'<w:ind w:left="567"/>':'<w:ind w:left="340" w:right="340"/>'}<w:spacing w:before="${before}" w:after="${after}" w:line="${line}" w:lineRule="${opts.exact?'exact':'auto'}"/><w:keepTogether/></w:pPr>${content}</w:p>`;
+}
+function cell(r,width,side){
+if(!r)return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:tcMar><w:top w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar></w:tcPr><w:p/> </w:tc>`;
+const [bg,fg]=floorColors(r.number);const shadow=r.number[0]==='4'&&$('pinkStyle').value==='white-shadow';const n=r.people.length;
+// Fixed exact heights allow accurate centering of the name block.
+const headerTop=420, headerLine=850, numberLine=850, bottomMargin=80;
+let content=para(r.title||'Kabinet','Playfair Display ExtraBold',36,fg,'left',headerTop,0,{line:headerLine,exact:true,header:true,shadow})
+           +para(r.number,'Alexandria SemiBold',36,fg,'left',0,0,{line:numberLine,exact:true,header:true,shadow});
+const layout=nameLayout(r,side);
+const {sizes,lineHeights,gap,topGap}=layout;
+for(let i=0;i<n;i++){
+  content+=para(r.people[i].name,'Playfair Display ExtraBold',sizes[i],fg,'center',i===0?topGap:0,i<n-1?gap:0,{line:lineHeights[i],exact:true,shadow});
+}
+if(!n)content+=para('','Playfair Display ExtraBold',8,fg,'center',0,0,{line:20,exact:true,shadow});
+return `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/><w:shd w:val="clear" w:fill="${bg}"/><w:tcMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="${bottomMargin}" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tcMar><w:vAlign w:val="top"/><w:tcBorders><w:top w:val="dotted" w:sz="2" w:color="777777"/><w:bottom w:val="dotted" w:sz="2" w:color="777777"/><w:left w:val="dotted" w:sz="2" w:color="777777"/><w:right w:val="dotted" w:sz="2" w:color="777777"/></w:tcBorders></w:tcPr>${content}</w:tc>`;}
+
+function createDoc(){sortPeople();let side=parseFloat($('side').value),gutter=parseFloat($('gutter').value);if(!Number.isFinite(side)||side<5||side>14||!Number.isFinite(gutter)||gutter<0||gutter>1.5||2*side+gutter>28.20001){alert('Upravte rozměry: dvě cedulky a mezera se musí vejít do 28,2 cm.');return null;}let a=cm(side),g=cm(gutter),w=a*2+g;let tables=[];for(let i=0;i<rooms.length;i+=2){let table=`<w:tbl><w:tblPr><w:tblW w:w="${w}" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders><w:top w:val="nil"/><w:bottom w:val="nil"/><w:left w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblCellSpacing w:w="0" w:type="dxa"/><w:tblInd w:w="0" w:type="dxa"/></w:tblPr><w:tblGrid><w:gridCol w:w="${a}"/><w:gridCol w:w="${g}"/><w:gridCol w:w="${a}"/></w:tblGrid><w:tr><w:trPr><w:trHeight w:val="${a}" w:hRule="exact"/><w:cantSplit/></w:trPr>${cell(rooms[i],a,side)}${cell(null,g,side)}${cell(rooms[i+1],a,side)}</w:tr></w:tbl>`;
+// A page-break-before paragraph comes before every subsequent table.
+if(i)tables.push('<w:p><w:pPr><w:pageBreakBefore/><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>');tables.push(table);
+}
+return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14"><w:body>${tables.join('')}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1134" w:right="425" w:bottom="1134" w:left="425" w:header="425" w:footer="425" w:gutter="0"/></w:sectPr></w:body></w:document>`;}
+const utf8=new TextEncoder();const crcTab=(()=>{const a=[];for(let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=(c&1)?0xEDB88320^(c>>>1):c>>>1;a.push(c>>>0);}return a})();function crc32(b){let c=0xFFFFFFFF;for(const v of b)c=crcTab[(c^v)&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0;}
+function zip(files){let chunks=[],central=[],at=0;function w16(v){return [v&255,(v>>>8)&255]}function w32(v){return [v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255]}for(const [name,content] of Object.entries(files)){let n=utf8.encode(name),b=content instanceof Uint8Array?content:utf8.encode(content),crc=crc32(b),lh=new Uint8Array([80,75,3,4,...w16(20),...w16(0),...w16(0),...w16(0),...w16(0),...w32(crc),...w32(b.length),...w32(b.length),...w16(n.length),...w16(0)]);chunks.push(lh,n,b);central.push(new Uint8Array([80,75,1,2,...w16(20),...w16(20),...w16(0),...w16(0),...w16(0),...w16(0),...w32(crc),...w32(b.length),...w32(b.length),...w16(n.length),...w16(0),...w16(0),...w16(0),...w16(0),...w32(0),...w32(at)]),n);at+=lh.length+n.length+b.length;}let csize=central.reduce((a,b)=>a+b.length,0),end=new Uint8Array([80,75,5,6,...w16(0),...w16(0),...w16(Object.keys(files).length),...w16(Object.keys(files).length),...w32(csize),...w32(at),...w16(0)]);return new Blob([...chunks,...central,end],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});}
+function makeBlob(){const doc=createDoc();if(!doc)return null;
+ const files={
+ '[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+ '_rels/.rels':'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+ 'word/_rels/document.xml.rels':'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
+ 'word/styles.xml':'<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr></w:style></w:styles>',
+ 'word/document.xml':doc
+ };return zip(files);
+}
+$('download').onclick=()=>{if(!rooms.length){alert('Nejprve nahrajte seznam.');return;}const blob=makeBlob();if(!blob)return;saveAs(blob,'Cedulky_kabinetu.docx');$('status').textContent='Word byl připraven ke stažení.'};
+render();
+</script></body></html>
